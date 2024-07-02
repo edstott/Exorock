@@ -10,6 +10,7 @@
             <make-dep-projects/>
             <sourceRootList>
                 <sourceRootElem>src</sourceRootElem>
+                <sourceRootElem>inc</sourceRootElem>
             </sourceRootList>
             <confList>
                 <confElem>

@@ -31,6 +31,7 @@
 #ifndef TYPES_H
 #define	TYPES_H
 #include <stdbool.h>
+#include <xc.h>
 
 #define MAX_NAME_LEN 8
 
@@ -46,29 +47,6 @@ typedef struct {
 } RFConfig_t;
 
 typedef struct {
-	enum {
-		MODULATE_OFF,
-		MODULATE_RF,
-		MODULATE_AF,
-		MODULATE_AF_PLUS_RF,
-		MODULATE_RF_PLUS_AF
-	} modulationChannel;
-	
-	enum {
-		MODULATE_SQUARE,
-		MODULATE_NAME_STATIC,
-		MODULATE_NAME_LOOKUP_RANDOM,
-		MODULATE_NAME_LOOKUP_CONFIG
-	} modulationMode;
-	
-	uint8_t primaryModulationPeriod;
-	uint8_t secondaryModulationDivider;
-	
-	char name[MAX_NAME_LEN];
-	
-} modulationConfig_t;
-
-typedef struct {
 	
 	enum {
 		IR_OFF,
@@ -81,20 +59,12 @@ typedef struct {
 	
 } IRConfig_t;
 
+typedef struct{
+	enum {
+		AF_OFF,
+		AF_ON
+	} AFMode;
+} AFConfig_t;
 
-
-typedef struct {
-	_Bool examMode;
-	
-	RFConfig_t RFConfig;
-	
-	_Bool AFenable;
-	
-	modulationConfig_t modulationConfig;
-	
-	IRConfig_t IRConfig;	
-			
-} exorockConfig_t;
-
-#endif	/* XC_HEADER_TEMPLATE_H */
+#endif
 

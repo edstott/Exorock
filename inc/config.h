@@ -10,38 +10,22 @@
 
 #include "types.h"
 #include "defines.h"
+#include "modulation.h"
 
+typedef struct {
+	_Bool examMode;
+	
+	RFConfig_t RFConfig;
+	
+	AFConfig_t AFConfig;
+	
+	modulationConfig_t modulationConfig;
+	
+	IRConfig_t IRConfig;	
+			
+} exorockConfig_t;
+    
+extern const exorockConfig_t* configList[N_CONFIGS];
+extern const exorockConfig_t defaultConfig;
 
-
-const exorockConfig_t testMode = {
-	false,
-	{
-		RF_FIXED_FREQ,
-		f_to_NCO_inc(89000)
-	},
-	true,
-	{
-		MODULATE_RF_PLUS_AF,
-		MODULATE_NAME_STATIC,
-		f_to_pri_mod_prd(600),
-		5,
-		"#TEST"		
-	},
-	{
-		IR_STATIC,
-		f_to_IR_prd(353)
-	}
-};
-
-const exorockConfig_t* configlist[N_CONFIGS] = {
-	&testMode,
-	&testMode,
-	&testMode,
-	&testMode,
-	&testMode,
-	&testMode,
-	&testMode,
-	&testMode
-};
 #endif	/* CONFIG_H */
-

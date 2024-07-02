@@ -20,8 +20,23 @@
 #define f_to_pri_mod_prd(f) (256-FOSC4/((long)f*TMR0_PRESCALE*2*TMR0_POSTSCALE))
 #define f_to_IR_prd(f) (FOSC4/((long)f*TMR2_PRESCALE*TMR2_POSTSCALE*TMR2_PRD))
 #define f_to_NCO_inc(f) (NCO_OVF*((long)f/1000)/1000)
+#define millis_to_t1_counter(t) t/20
+#define mV_to_ADC(v) v/20
 
 #define N_CONFIGS 8
+
+#define INIT_SEQUENCE_INTERVAL 500
+#define DOUBLE_FLASH_INTERVAL 100
+#define MODE_DISPLAY_INTERVAL 3000
+#define LED_SHORT_FLASH 50
+#define LED_MEDIUM_FLASH 100
+#define LED_LONG_FLASH 400
+
+#define BATT_THRESHOLD_1 2400
+#define BATT_THRESHOLD_2 2800
+#define BATT_THRESHOLD_3 2900
+#define BATT_THRESHOLD_4 3000
+
 
 #endif	/* DEFINES_H */
 
