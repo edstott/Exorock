@@ -11,9 +11,11 @@
 #include "types.h"
 #include "defines.h"
 #include "modulation.h"
+#include "rf.h"
 
 typedef struct {
 	_Bool examMode;
+	_Bool extraModeBit;
 	
 	RFConfig_t RFConfig;
 	

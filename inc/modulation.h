@@ -3,7 +3,7 @@
 
 #include <xc.h>
 
-#define MAX_NAME_LEN 8
+#define MAX_NAME_LEN 5
 #define PREAMBLE_BYTES 16
 #define N_BITS 10
 

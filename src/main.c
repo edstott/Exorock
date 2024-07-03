@@ -11,6 +11,7 @@
 #include "defines.h"
 #include "config.h"
 #include "modulation.h"
+#include "rf.h"
 #include "main.h"
 
 struct {
@@ -32,58 +33,55 @@ void configAF(AFConfig_t *pAFconfig){
 
 }
 
-void configRF(RFConfig_t *pRFconfig){
-    
-}
-
 void configIR(IRConfig_t *pIRconfig){
     
 }
 
 void main(void) {
-    uint8_t mode = 0;
+    OSCCONbits = OSCCON_INIT;
+	
     const exorockConfig_t *pConfig;
     uint8_t stateTimer = 0;
     uint8_t LEDtimer = 0;
     state_t state = INIT;
+	
+    uint8_t mode = 0;
+	uint8_t switchInput;
     
-    OSCCONbits.IRCF = 0x0f;
     ANSELA = 0x00;
     OPTION_REGbits = OPTION_INIT;
+	
+	TMR1 = 0;
+    PIR1bits.TMR1IF = 0;
     T1CONbits = T1CON_INIT;
-    
+	   
+    WPUAbits = WPUA_NORMAL; 
+    LATAbits = LATA_QUIET;
     TRISAbits = TRISA_NORMAL;
-    LATA = SW_MASK;
-    WPUA = SW_MASK;
+	
+	/*Read voltage reference*/
+	FVRCONbits = FVRCON_READ_BATT;
+	while (!FVRCONbits.FVRRDY) {}
+	
+	IR_PIN = true;
     
-    NOP();
-    
-    TRISA = SW_MASK;
-    READ_SW_PIN = 0;
-    
-    NOP();
-    
-    mode = PORTA & SW_MASK;
-    
-    LATAbits = LATA_OUT_QUIET;
-    TRISAbits = TRISA_NORMAL;
-    WPUA  = 0;
-    
-    
-
-    if (mode < N_CONFIGS) {
-        pConfig = configList[mode % N_CONFIGS];
-    } else {
-        pConfig = &defaultConfig;
-    }
-
-    /* Configure system state with pointers to configuration structs*/
-    systemState.modulationState.pModulationConfig = &pConfig->modulationConfig;
-
-    configModulation(&systemState.modulationState);
-    
-    uint8_t battVoltage = 0;
-    uint8_t displayMode = mode;
+	ADCON1bits = ADCON1_READ_BATT;
+	ADCON0bits = ADCON0_READ_BATT;
+	
+	//Wait for acquisition
+	for (uint8_t i=0; i<10; i++) {}
+	
+	ADCON0bits.GO = 1;
+	IR_PIN = false;
+	while (ADCON0bits.GO) {}
+	
+	ADCON0bits.ADON = 0;
+	FVRCONbits.FVREN = 0;
+			
+	uint8_t battVoltage = ADRESH;
+	   
+    LATAbits = LATA_READ_SWITCH;
+    TRISAbits = TRISA_READ_SWITCH;
 
     while (true) {
         /* Wait for timer*/
@@ -92,10 +90,10 @@ void main(void) {
 
         /* Switch on LED if LED timer active*/
         if (LEDtimer > 0) {
-            LED = true;
+            LED = LEDon;
             LEDtimer--;
         } else {
-            LED = false;
+            LED = LEDoff;
         }
 
         /* Decrement state timer. On zero, find next state and update timers*/
@@ -104,6 +102,34 @@ void main(void) {
         } else {
             switch (state) {
                 case INIT:
+    
+					switchInput = PORTA;
+    
+					LATAbits = LATA_QUIET;
+					TRISAbits = TRISA_NORMAL;
+
+					if (~switchInput & 0x20) mode |= 0x01;
+					if (~switchInput & 0x01) mode |= 0x02;
+					if (~switchInput & 0x02) mode |= 0x04;
+
+					if (mode < N_CONFIGS) {
+						pConfig = configList[mode % N_CONFIGS];
+					} else {
+						pConfig = &defaultConfig;
+					}
+					
+					//Insert the extra bit for mode display
+					mode = (uint8_t)(mode << 1) | pConfig->extraModeBit;
+
+					/* Configure system state with pointers to configuration structs*/
+					systemState.modulationState.pModulationConfig = &pConfig->modulationConfig;
+
+					configModulation(&systemState.modulationState);
+					configRF(&pConfig->RFConfig);
+
+					LATAbits = LATA_QUIET;
+					TRISAbits = TRISA_NORMAL;
+					
                     LEDtimer = 0;
                     stateTimer = millis_to_t1_counter(INIT_SEQUENCE_INTERVAL);
                     state = INIT_START_FLASH_1;
@@ -128,7 +154,7 @@ void main(void) {
                     break;
 
                 case BATT_FLASH_2:
-                    if (battVoltage > mV_to_ADC(BATT_THRESHOLD_1)) {
+                    if (battVoltage < mV_to_ADC(BATT_THRESHOLD_1)) {
                         LEDtimer = millis_to_t1_counter(LED_MEDIUM_FLASH);
                     } else {
                         LEDtimer = 0;
@@ -138,7 +164,7 @@ void main(void) {
                     break;
 
                 case BATT_FLASH_3:
-                    if (battVoltage > mV_to_ADC(BATT_THRESHOLD_2)) {
+                    if (battVoltage < mV_to_ADC(BATT_THRESHOLD_2)) {
                         LEDtimer = millis_to_t1_counter(LED_MEDIUM_FLASH);
                     } else {
                         LEDtimer = 0;
@@ -148,7 +174,7 @@ void main(void) {
                     break;
 
                 case BATT_FLASH_4:
-                    if (battVoltage > mV_to_ADC(BATT_THRESHOLD_3)) {
+                    if (battVoltage < mV_to_ADC(BATT_THRESHOLD_3)) {
                         LEDtimer = millis_to_t1_counter(LED_MEDIUM_FLASH);
                     } else {
                         LEDtimer = 0;
@@ -158,7 +184,7 @@ void main(void) {
                     break;
 
                 case BATT_FLASH_5:
-                    if (battVoltage > mV_to_ADC(BATT_THRESHOLD_4)) {
+                    if (battVoltage < mV_to_ADC(BATT_THRESHOLD_4)) {
                         LEDtimer = millis_to_t1_counter(LED_MEDIUM_FLASH);
                     } else {
                         LEDtimer = 0;
@@ -182,7 +208,7 @@ void main(void) {
                 case MODE_DISPLAY_0:
                     if (pConfig->examMode) {
                         LEDtimer = millis_to_t1_counter(LED_SHORT_FLASH);
-                    } else if (displayMode & 0x01) {
+                    } else if (mode & 0x01) {
                         LEDtimer = millis_to_t1_counter(LED_LONG_FLASH);
                     } else {
                         LEDtimer = millis_to_t1_counter(LED_MEDIUM_FLASH);
@@ -194,7 +220,7 @@ void main(void) {
                 case MODE_DISPLAY_1:
                     if (pConfig->examMode) {
                         LEDtimer = 0;
-                    } else if (displayMode & 0x02) {
+                    } else if (mode & 0x02) {
                         LEDtimer = millis_to_t1_counter(LED_LONG_FLASH);
                     } else {
                         LEDtimer = millis_to_t1_counter(LED_MEDIUM_FLASH);
@@ -206,7 +232,7 @@ void main(void) {
                 case MODE_DISPLAY_2:
                     if (pConfig->examMode) {
                         LEDtimer = 0;
-                    } else if (displayMode & 0x04) {
+                    } else if (mode & 0x04) {
                         LEDtimer = millis_to_t1_counter(LED_LONG_FLASH);
                     } else {
                         LEDtimer = millis_to_t1_counter(LED_MEDIUM_FLASH);
@@ -218,7 +244,7 @@ void main(void) {
                 case MODE_DISPLAY_3:
                     if (pConfig->examMode) {
                         LEDtimer = 0;
-                    } else if (displayMode & 0x08) {
+                    } else if (mode & 0x08) {
                         LEDtimer = millis_to_t1_counter(LED_LONG_FLASH);
                     } else {
                         LEDtimer = millis_to_t1_counter(LED_MEDIUM_FLASH);

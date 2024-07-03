@@ -9,6 +9,7 @@
 /* Test mode uses all the outputs*/
 const exorockConfig_t testMode = {
 	false,
+	false,
 	{
 		RF_FIXED_FREQ,
 		f_to_NCO_inc(89000)
@@ -31,6 +32,7 @@ const exorockConfig_t testMode = {
 
 /* Default mode does nothing*/
 const exorockConfig_t defaultConfig = {
+	false,
 	false,
 	{
 		RF_OFF,

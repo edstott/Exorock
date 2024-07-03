@@ -33,18 +33,6 @@
 #include <stdbool.h>
 #include <xc.h>
 
-#define MAX_NAME_LEN 8
-
-typedef struct {
-	enum {
-		RF_OFF,
-		RF_FIXED_FREQ,
-		RF_SWEEP
-	} RFMode;
-	
-	uint16_t NCOIncrement;
-	
-} RFConfig_t;
 
 typedef struct {
 	
