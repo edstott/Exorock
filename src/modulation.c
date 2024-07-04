@@ -43,6 +43,8 @@ void setSecondaryOutput(modulationState_t *pState, _Bool outState){
 }
 
 void configModulation(modulationState_t *pState){
+    PMADRL = (uint8_t)nameList;
+    PMADRH = (uint8_t)((uint16_t)nameList >> 8);
     
 }
 
@@ -75,10 +77,12 @@ void updateModulation(modulationState_t *pState){
                 } else {
                     switch (bitIndex) {
                         case 0:
-                            setPrimaryOutput(pState, false);
                             currentChar = pState->name[byteIndex];
-                            if (currentChar == '\0') {
+                            if (currentChar == '\0' || byteIndex == MAX_NAME_LEN) {
                                 byteIndex = -PREAMBLE_BYTES;
+                                setPrimaryOutput(pState, true);
+                            } else {
+                                setPrimaryOutput(pState, false);
                             }
                             break;
                         case 1:

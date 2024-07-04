@@ -69,7 +69,7 @@ void main(void) {
 	ADCON0bits = ADCON0_READ_BATT;
 	
 	//Wait for acquisition
-	for (uint8_t i=0; i<10; i++) {}
+	for (uint8_t i=0; i<10; i++) NOP();
 	
 	ADCON0bits.GO = 1;
 	IR_PIN = false;

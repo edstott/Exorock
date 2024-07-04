@@ -30,3 +30,4 @@
 *.bak
 /build
 /dist
+/.ca

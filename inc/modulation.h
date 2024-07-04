@@ -3,7 +3,7 @@
 
 #include <xc.h>
 
-#define MAX_NAME_LEN 5
+#define MAX_NAME_LEN 4
 #define PREAMBLE_BYTES 16
 #define N_BITS 10
 
@@ -40,6 +40,8 @@ typedef struct {
 
 void configModulation(modulationState_t *pState);
 void updateModulation(modulationState_t *pState);
+
+extern void *nameList;
 
 
 #endif	/* MODULATION_H */
