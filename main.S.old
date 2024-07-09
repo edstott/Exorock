@@ -1,0 +1,1543 @@
+;*******************************************************************************
+;                                                                              *
+;    Microchip licenses this software to you solely for use with Microchip     *
+;    products. The software is owned by Microchip and/or its licensors, and is *
+;    protected under applicable copyright laws.  All rights reserved.          *
+;                                                                              *
+;    This software and any accompanying information is for suggestion only.    *
+;    It shall not be deemed to modify Microchip?s standard warranty for its    *
+;    products.  It is your responsibility to ensure that this software meets   *
+;    your requirements.                                                        *
+;                                                                              *
+;    SOFTWARE IS PROVIDED "AS IS".  MICROCHIP AND ITS LICENSORS EXPRESSLY      *
+;    DISCLAIM ANY WARRANTY OF ANY KIND, WHETHER EXPRESS OR IMPLIED, INCLUDING  *
+;    BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS    *
+;    FOR A PARTICULAR PURPOSE, OR NON-INFRINGEMENT. IN NO EVENT SHALL          *
+;    MICROCHIP OR ITS LICENSORS BE LIABLE FOR ANY INCIDENTAL, SPECIAL,         *
+;    INDIRECT OR CONSEQUENTIAL DAMAGES, LOST PROFITS OR LOST DATA, HARM TO     *
+;    YOUR EQUIPMENT, COST OF PROCUREMENT OF SUBSTITUTE GOODS, TECHNOLOGY OR    *
+;    SERVICES, ANY CLAIMS BY THIRD PARTIES (INCLUDING BUT NOT LIMITED TO ANY   *
+;    DEFENSE THEREOF), ANY CLAIMS FOR INDEMNITY OR CONTRIBUTION, OR OTHER      *
+;    SIMILAR COSTS.                                                            *
+;                                                                              *
+;    To the fullest extend allowed by law, Microchip and its licensors         *
+;    liability shall not exceed the amount of fee, if any, that you have paid  *
+;    directly to Microchip to use this software.                               *
+;                                                                              *
+;    MICROCHIP PROVIDES THIS SOFTWARE CONDITIONALLY UPON YOUR ACCEPTANCE OF    *
+;    THESE TERMS.                                                              *
+;                                                                              *
+;*******************************************************************************
+;                                                                              *
+;    Filename:                                                                 *
+;    Date:                                                                     *
+;    File Version:                                                             *
+;    Author:                                                                   *
+;    Company:                                                                  *
+;    Description:                                                              *
+;                                                                              *
+;*******************************************************************************
+;                                                                              *
+;    Notes: In the MPLAB X Help, refer to the MPASM Assembler documentation    *
+;    for information on assembly instructions.                                 *
+;                                                                              *
+;*******************************************************************************
+;                                                                              *
+;    Known Issues: This template is designed for relocatable code.  As such,   *
+;    build errors such as "Directive only allowed when generating an object    *
+;    file" will result when the 'Build in Absolute Mode' checkbox is selected  *
+;    in the project properties.  Designing code in absolute mode is            *
+;    antiquated - use relocatable mode.                                        *
+;                                                                              *
+;*******************************************************************************
+;                                                                              *
+;    Revision History:                                                         *
+;                                                                              *
+;*******************************************************************************
+#include <xc.inc>
+    
+// CONFIG1
+config FOSC = INTOSC    // Oscillator Selection Bits->INTOSC oscillator: I/O function on CLKIN pin
+config WDTE = OFF    // Watchdog Timer Enable->WDT disabled
+config PWRTE = OFF    // Power-up Timer Enable->PWRT disabled
+config MCLRE = ON    // MCLR Pin Function Select->MCLR/VPP pin function is MCLR
+config CP = OFF    // Flash Program Memory Code Protection->Program memory code protection is disabled
+config BOREN = OFF    // Brown-out Reset Enable->Brown-out Reset disabled
+config CLKOUTEN = OFF    // Clock Out Enable->CLKOUT function is disabled. I/O or oscillator function on the CLKOUT pin
+
+// CONFIG2
+config WRT = OFF    // Flash Memory Self-Write Protection->Write protection off
+config STVREN = ON    // Stack Overflow/Underflow Reset Enable->Stack Overflow or Underflow will cause a Reset
+config BORV = LO    // Brown-out Reset Voltage Selection->Brown-out Reset Voltage (Vbor), low trip point selected.
+config LPBOR = OFF    // Low-Power Brown Out Reset->Low-Power BOR is disabled
+config LVP = OFF    // Low-Voltage Programming Enable->High-voltage on MCLR/VPP must be used for programming
+
+;Definitions 
+ ;Build options
+ 
+#define AUTO_OFF 0
+#define DEBUG_SW 0
+#define TYPE 3 //0=V1.0 Exoflask, 1=Exorock, 2=Alien, 3=Lizard
+#define	MOD_CH 1    //0=RF, 1=AF
+#define MOD_TYPE 1 //0=square wave, 1=UART
+#define RF_DRIVE 0 //0=toggle, 1=pulse
+//#define TEST_MODE 0x01 //Force a single mode, ignore switches
+#define NAME_MODE 1 //0=MSG 1-4 selected by mode. 1=name selected by hard-coded ID
+#define IR_MODE 0 //0=IR freq. selected by mode. 1=IR freq. selected by hard-coded ID
+#define	DEBUG_BATT 0 //Use battery reading for UART modulation data
+//#define BATT_TEST_LEVEL 166 //Override the ADC measurement
+#define DEMO_MODE 1
+ 
+config IDLOC0 = 0x00	//Name setting (may be overwritten by SQTP)
+config IDLOC1 = 0x00	//IR setting (may be overwritten by SQTP)
+ 
+;Pins
+#if TYPE == 0
+    ;Pins for Exoflask
+    #define	PIN_SW1	0x1
+    #define	PIN_SW2	0x0
+    #define	PIN_SW3	0x5
+    ;Mode bit display order
+    #define	LED_1	0x3
+    #define	LED_2	0x0
+    #define	LED_3	0x1
+    #define	LED_4	0x2
+#else    
+    ;Pins for V1.1 Exorock, Exolizard
+    #define	PIN_SW1	0x5
+    #define	PIN_SW2	0x0
+    #define	PIN_SW3	0x1
+    ;Mode bit display order
+    #define	LED_1	0x0
+    #define	LED_2	0x1
+    #define	LED_3	0x2
+    #define	LED_4	0x3
+#endif
+    
+;Modes
+;   {SW3,SW2,SW1}   SW4	    RF	    Acoustic	IR
+;   000		    0	    Sweep   N		N
+;   001		    1	    Low 1   Y		N
+;   010		    1	    Low 2   N		N
+;   011		    0	    High 3  N		N
+;   100		    0	    High 4  N		N
+;   101		    0	    N	    N		Y
+;   110		    1	    Low	    Y		Y
+;   111		    0	    N	    Y		Y
+#if DEMO_MODE == 1
+    #define MODE_0 SETUP_MODE_LIZ_1
+    #define MODE_1 SETUP_MODE_LIZ_1
+    #define MODE_2 SETUP_MODE_LIZ_2
+    #define MODE_3 SETUP_MODE_LIZ_2
+    #define MODE_4 SETUP_MODE_LIZ_3
+    #define MODE_5 SETUP_MODE_LIZ_3
+    #define MODE_6 SETUP_MODE_LIZ_4
+    #define MODE_7 SETUP_MODE_LIZ_4  
+    
+    #define BIT4_0 0x0
+    #define BIT4_1 0x1
+    #define BIT4_2 0x2
+    #define BIT4_3 0x3
+    #define BIT4_4 0x4
+    #define BIT4_5 0x5
+    #define BIT4_6 0x6
+    #define BIT4_7 0x7
+#elif TYPE == 2
+    #define MODE_0 SETUP_MODE_DEFAULT
+    #define MODE_1 SETUP_MODE_RAND
+    #define MODE_2 SETUP_MODE_TEST
+    #define MODE_3 SETUP_MODE_IDLE
+    #define MODE_4 SETUP_MODE_SWEEP
+    #define MODE_5 SETUP_MODE_IDLE
+    #define MODE_6 SETUP_MODE_IDLE
+    #define MODE_7 SETUP_MODE_IDLE  
+    
+    #define BIT4_0 0x0
+    #define BIT4_1 0x1
+    #define BIT4_2 0x2
+    #define BIT4_3 0x3
+    #define BIT4_4 0x4
+    #define BIT4_5 0x5
+    #define BIT4_6 0x6
+    #define BIT4_7 0x7
+#elif TYPE == 1
+    #define MODE_0 SETUP_MODE_DEFAULT
+    #define MODE_1 SETUP_MODE_RAND
+    #define MODE_2 SETUP_MODE_RFL2
+    #define MODE_3 SETUP_MODE_RFH3
+    #define MODE_4 SETUP_MODE_RFH4
+    #define MODE_5 SETUP_MODE_IRL
+    #define MODE_6 SETUP_MODE_TEST
+    #define MODE_7 SETUP_MODE_IRH_A
+    
+    #define BIT4_0 0x0
+    #define BIT4_1 0x1
+    #define BIT4_2 0x2
+    #define BIT4_3 0x3
+    #define BIT4_4 0x4
+    #define BIT4_5 0x5
+    #define BIT4_6 0x6
+    #define BIT4_7 0x7
+    
+#elif TYPE == 3 //Lizard
+    #define MODE_0 SETUP_MODE_TEST
+    #define MODE_1 SETUP_MODE_LIZ_1
+    #define MODE_2 SETUP_MODE_RAND
+    #define MODE_3 SETUP_MODE_LIZ_2
+    #define MODE_4 SETUP_MODE_IDLE
+    #define MODE_5 SETUP_MODE_LIZ_3
+    #define MODE_6 SETUP_MODE_IDLE
+    #define MODE_7 SETUP_MODE_LIZ_4
+    
+    #define BIT4_0 0x0
+    #define BIT4_1 0x1
+    #define BIT4_2 0x2
+    #define BIT4_3 0x3
+    #define BIT4_4 0x4
+    #define BIT4_5 0x5
+    #define BIT4_6 0x6
+    #define BIT4_7 0x7
+#endif
+    
+#define PIN_READSW 0x2
+#define	PIN_IR 0x4
+#define PIN_ALIVE 0x1
+#define	PIN_RF 0x5
+#define	PIN_AF 0x0
+    
+#define	OUT_QUIET (0x01 << PIN_ALIVE) | (0x01 << PIN_READSW)
+#define SW_MASK (0x01 << PIN_SW1) | (0x01 << PIN_SW2) | (0x01 << PIN_SW3)
+#define TRIS_NORMAL 0x00
+
+;out_flags bits
+    ;Radio/Audio mode
+    #define	RF_FRQ 0	//0=low, 1=high carrier
+    #define	RF_MOD_1 1	//Modulation 1
+    #define	RF_MOD_2 2	//Modulation 2
+    #define	RF_MOD_3 3	//Modulation 3
+    #define	RF_MOD_4 4	//Modulation 4
+    #define RF_SWEEP 5		//Sweep Mode
+    #define	SEC_MOD 7	//Apply square modulation to secondary output
+    ;Infrared mode
+    #define	IR_FRQ 6	//0=low, 1=high
+    
+;flags bits
+    #define	tout 0
+    #define	pwrup 1
+    #define	uart_next 2
+    ;#define uart_par 3
+    #define	led_mode 3	//0=show mode, 1=pulse only
+    #define	IR_sync 4	//Use IR as UART sync
+    #define	cycle_name 5
+
+
+;Constants 
+#define IR_COUNT 10
+    
+    #define    VREF 2048
+    #define    BATT_LVL_0 VREF*255/2400
+    #define    BATT_LVL_1 VREF*255/2800
+    #define    BATT_LVL_2 VREF*255/2900
+    #define    BATT_LVL_3 VREF*255/3000
+    
+    ;Test parameters
+    ;#define    BATT_TEST_LEVEL=VREF*100/.3000
+
+;Delays in startup sequence: 64us per count
+#define LED_SHORT_PULSE	100
+#define LED_SEQ_DELAY	7812
+    
+;Delays in main loop: 65ms per timer overflow
+    #define	LED_SEQUENCE_PERIOD 100
+    #define	LED_FIRST_PERIOD 20
+    #define	LED_BLANK_PERIOD 4
+    #define	LED_DASH_PERIOD 4
+    #define	LED_DOT_PERIOD 1
+    #define	TIMEOUT 4578
+    
+;Main output parameters
+    //NCO: RF Carrier
+    //TMR0: RF Modulation(preload on interrupt), AF Modulation (preload on interrupt)
+    //TMR1: LED(count interrupts), Timeout(count interrupts) 
+    //TMR2: AF Carrier (hardware), IR pulse (count interrupts)
+    #define	FOSC4 4000000
+    ;NCO constants
+    #if RF_DRIVE==0
+    #define	NCO_OVF 131072
+    #else
+    #define	NCO_OVF 65536
+    #endif
+    #define	NCO_INC_L NCO_OVF*61/1000   //61kHz
+    #define	NCO_INC_H NCO_OVF*89/1000 //89kHz
+    #define	NCO_INC_MIN NCO_OVF*40/1000   //40kHz
+    #define	NCO_INC_MAX NCO_OVF*120/1000   //120kHz
+    
+    ;TMR0 constants
+    #define	TMR0_PRESCALE 64
+    #define	MOD_1_F 151     //151Hz
+    #define	MOD_2_F 239   //239Hz
+    #define	MOD_3_F 151     //151Hz
+    #define	MOD_4_F 239   //239Hz
+    #define	MOD_UART_BPS 600  //600bps
+    #define	TMR0_POSTSCALE 2
+    #define	SEC_MOD_1 120
+    #define	SEC_MOD_2 200
+    
+    //TMR2 constants
+    #define	TMR2_PRESCALE 4
+    #define	TMR2_POSTSCALE 2
+    #define	AF_HZ 40000
+    #define	IR_L_F 353
+    #define	IR_H_F 571
+    #define	IR_PULSE_US 50
+    #define	IR_MAX_F 1000
+    #define	TMR2_PRD FOSC4/(AF_HZ*TMR2_PRESCALE)
+    #define	IR_ON (FOSC4*IR_PULSE_US)/(TMR2_PRESCALE*TMR2_POSTSCALE*TMR2_PRD*1000000)
+    #define	IR_L_OFF (FOSC4)/(IR_L_F*TMR2_PRESCALE*TMR2_POSTSCALE*TMR2_PRD)-IR_ON
+    #define	IR_H_OFF (FOSC4)/(IR_H_F*TMR2_PRESCALE*TMR2_POSTSCALE*TMR2_PRD)-IR_ON
+    #define	IR_MIN_OFF (FOSC4)/(IR_MAX_F*TMR2_PRESCALE*TMR2_POSTSCALE*TMR2_PRD)-IR_ON
+    
+ //   #define	AF_BAUD 600
+   // #define	AF_PRD FOSC4/(AF_HZ*4)    //40kHz
+  //  #define	AF_HIGH AF_PRD/2    //50%
+  //  #define	T2_SOFT_PRD AF_HZ/(AF_BAUD*11)	
+    
+    ;Define the UART messages
+    #define	MSG_LEN 4
+    #define	DATA_BITS 8
+    #define	UART_BLANK_BITS 64
+    
+PSECT data
+ #define PROGMEM 0x8000
+MSG_1: DW "#GAB"
+MSG_2: DW "#NUC"
+MSG_3: DW "#DUR"
+MSG_4: DW "#PER"
+ 
+GLOBAL	NAMES
+
+
+;Registers
+PSECT udata
+modereg:	    DS	1
+batt_lvl:    DS	1
+led_state:   DS	1
+led_timer:   DS	1
+out_flags:   DS	1
+TMR0_prd:    DS 1
+flags:	    DS	1
+timeoutL:    DS 1 
+timeoutH:   DS 1
+uart_ctr:   DS 1
+uart_shift:  DS 1
+nco_sweep:   DS 2
+T2_soft_postscaler: DS 1
+name:	    DS 1
+IR_OFF_prd:	    DS 1
+rand:	DS 2
+sec_mod_prd: DS 1
+sec_mod_ctr: DS 1
+T0_postscaler: DS 1
+    
+
+PSECT int_vec,class=CODE,delta=2
+
+;*******************************************************************************
+; Reset Vector
+;*******************************************************************************
+PSECT powerup,class=CODE
+PSECT cinit,class=CODE
+PSECT functab,class=CODE
+PSECT end_init,class=CODE,delta=2   
+PSECT init,class=CODE,delta=2   
+PSECT reset_vec,class=CODE,delta=2
+resetVec:
+    GOTO    START                   ; go to beginning of program
+
+
+;------------------------------PIC16's and below-------------------
+PSECT intentry,class=CODE,delta=2
+PSECT int_vec,class=CODE,delta=2
+intVec:  
+    btfsc   TMR2IF
+    call    TMR2_ISR
+    btfsc   TMR0IF
+    call    TMR0_ISR
+
+    RETFIE
+    
+    ;Timer0: Radio modulation
+TMR0_ISR:
+    movf    TMR0_prd,w
+    movwf   TMR0
+    bcf	    TMR0IF
+    decfsz  T0_postscaler,f //Check postscaler, only applies to primary modulation
+    bra	    TMR0_ISR_1
+    movlw   TMR0_POSTSCALE
+    movwf   T0_postscaler
+    
+    btfsc   out_flags,RF_SWEEP
+    call    TMR0_ISR_RF_SWEEP
+    
+    #if MOD_TYPE == 0 //Square 
+	#if MOD_CH == 0	//RF
+	    BANKSEL NCO1CON
+	    movlw   NCO1CON_N1OE_MASK    ;Toggle the NCO output enable on every interrupt
+	    xorwf   NCO1CON,f
+	    clrf    BSR
+	    bcf	    PORTA,PIN_RF
+	    bra	    TMR0_ISR_1
+
+	#else	//AF
+	    banksel PWM2CON
+	    movlw   PWM2OE_MASK
+	    xorwf   PWM2CON,f
+	    clrf    BSR
+	    bcf	    PORTA,PIN_AF
+	    bra	    TMR0_ISR_1
+	    
+	#endif
+  
+    #else   //UART
+	call    UART
+
+	btfss   WREG,0
+	bra	    TMR0_ISR_RF_ZERO
+    
+    TMR0_ISR_RF_ONE: 
+	#if MOD_CH == 0	//RF
+	    banksel NCO1CON
+	    bsf	    N1OE
+	    clrf    BSR
+	    bra	    TMR0_ISR_1
+	
+	#else
+	    banksel PWM2CON
+	    bsf	    PWM2OE
+	    clrf    BSR
+	    bra	    TMR0_ISR_1
+	    
+	 #endif
+    
+TMR0_ISR_RF_ZERO:
+	#if MOD_CH == 0	//RF
+	    banksel NCO1CON
+	    bcf	    N1OE
+	    clrf    BSR
+	    bcf	    PORTA,PIN_RF
+	
+	#else
+	    banksel PWM2CON
+	    bcf	    PWM2OE
+	    clrf    BSR
+	    bcf	    PORTA,PIN_AF
+	    
+	 #endif
+    #endif
+    
+    //Secondary modulation
+TMR0_ISR_1:
+    btfss   out_flags,SEC_MOD
+    return
+    
+    decfsz  sec_mod_ctr,f
+    return
+    
+    movf    sec_mod_prd,w
+    movwf   sec_mod_ctr
+    
+    #if MOD_CH == 1	//AF main output so modulate RF
+	BANKSEL NCO1CON
+	movlw   NCO1CON_N1OE_MASK    ;Toggle the NCO output enable on every interrupt
+	xorwf   NCO1CON,f
+	clrf    BSR
+	bcf	PORTA,PIN_RF
+	return
+
+    #else	//AF
+	banksel PWM2CON
+	movlw   PWM2OE_MASK
+	xorwf   PWM2CON,f
+	clrf    BSR
+	bcf	PORTA,PIN_AF
+	return
+
+    #endif
+    
+
+    ;Sweep Mode
+TMR0_ISR_RF_SWEEP:
+    lsrf    nco_sweep+1,w   ;nco_sweep = nco_sweep * 1.002
+    addwf   nco_sweep,f
+    clrw
+    addwfc  nco_sweep+1,f
+    
+    movlw   high(NCO_INC_MAX)	//Check for end of sweep
+    xorwf   nco_sweep+1,w
+    btfss   ZERO
+    bra	    TMR0_ISR_RF_SWEEP_1
+    
+    movlw   high(NCO_INC_MIN)	//Restart sweep
+    movwf   nco_sweep+1
+    movlw   low(NCO_INC_MIN)
+    movwf   nco_sweep
+    
+    btfss   flags,IR_sync
+    bra	    TMR0_ISR_RF_SWEEP_1
+    
+    bsf	    PORTA,PIN_IR    //Start IR pulse in IR Sync Mode
+    clrf    TMR2
+    movlw   IR_ON	
+    movwf   T2_soft_postscaler
+    bcf	    TMR2IF
+    banksel PIE1
+    bsf	    TMR2IE
+    clrf    BSR
+    
+TMR0_ISR_RF_SWEEP_1:   
+    movf    nco_sweep+1,w
+    banksel NCO1CON
+    movwf   NCO1INCH
+    clrf    BSR 
+    movf    nco_sweep,w
+    banksel NCO1CON
+    movwf   NCO1INCL
+    clrf    BSR 
+    return
+    
+TMR2_ISR:
+    bcf	    TMR2IF
+    banksel PIE1
+    btfsc   TMR2IE
+    bra	    TMR2_ISR_1
+    clrf    BSR
+    return
+TMR2_ISR_1:    
+    clrf    BSR
+    decfsz  T2_soft_postscaler,f
+    return
+    
+    movlw   0x01 << PIN_IR  ;Toggle the IR output
+    xorwf   PORTA,f
+    
+    ;Is the IR on?
+    movf    IR_OFF_prd,w
+    btfsc   PORTA,PIN_IR    ;Use the current O/P state to choose the next delay  
+    movlw   IR_ON
+    movwf   T2_soft_postscaler
+    btfss   flags,IR_sync   //Disable interrupt in UART sync mode
+    return
+    banksel PIE1
+    bcf	    TMR2IE
+    clrf    BSR
+    return
+    
+UART:
+    ;Send next UART bit
+    ;Check if character counter is in blank period
+    swapf   uart_ctr,w
+    andlw   0x0f
+    addlw   -MSG_LEN
+    btfsc   CARRY
+    bra	    UART_BLANK
+    
+    ;Check bit counter
+    movf    uart_ctr,w
+    andlw   0x0f
+    
+    btfsc   ZERO	;Look for start bit
+    bra	    UART_START
+    
+    ;xorlw   DATA_BITS ;Look for parity bit
+    ;btfsc   ZERO
+    ;bra	    TMR0_ISR_RF_PAR
+    
+    xorlw   DATA_BITS + 1 ;Look for stop bit
+    btfsc   ZERO
+    bra	    UART_STOP
+    
+  
+UART_BIT:
+    rrf	    uart_shift,f
+    incf    uart_ctr,f
+    btfss   CARRY
+    retlw   0x0
+    ;movlw   0x01 << uart_par
+    ;xorwf   flags,f
+    retlw   0x1
+    
+    ;Do start bit
+UART_START:
+    incf    uart_ctr,f	;Advance bit counter
+    bsf	    flags,uart_next ;Load next character
+    ;bcf	    flags,uart_par ;Clear parity bit
+    
+    movf    uart_ctr,w	//Check for IR Sync Mode and first char
+    andlw   0xf0
+    btfsc   flags,IR_sync
+    btfss   ZERO
+    retlw   0x0
+    
+    bsf	    PORTA,PIN_IR
+    clrf    TMR2
+    movlw   IR_ON	//Start IR pulse in IR Sync Mode
+    movwf   T2_soft_postscaler
+    bcf	    TMR2IF
+    banksel PIE1
+    bsf	    TMR2IE
+    clrf    BSR
+    retlw   0x0
+    
+    ;Do stop bit
+UART_STOP:
+    movlw   0x10 - DATA_BITS - 1 ;Advance character counter, bit counter=0
+    addwf   uart_ctr,f
+    retlw   0x1
+    
+UART_BLANK:
+    incf    uart_ctr,f	;Advance bit counter
+    movf    uart_ctr,w
+    addlw   -(UART_BLANK_BITS+MSG_LEN*0x10)
+    btfsc   CARRY
+    clrf    uart_ctr
+    retlw   0x1
+    
+    ;Do parity bit
+;UART_PAR
+ ;   incf    uart_ctr,f	;Advance bit counter
+ ;   btfss   flags,uart_par
+ ;   bra	    TMR0_ISR_RF_ZERO
+ ;   bra	    TMR0_ISR_RF_ONE
+    
+    
+
+;*******************************************************************************
+; MAIN PROGRAM
+;*******************************************************************************
+    
+    
+PSECT code                      ; let linker place main program
+
+START:
+start_initialization:
+    call    INIT        ;Set up micro
+    
+    ;Check for power-down condition
+    banksel PCON
+    btfsc   nRMCLR  ;Continue to start if reset was not MCLR
+    bra     START_STARTUP
+    clrf    BSR
+    btfsc   flags,pwrup ;Sleep if reset happened during startup
+    bra     START_SLEEP
+    
+START_STARTUP:
+    clrf    BSR
+    movf    TMR1L,w
+    movwf   rand
+    movf    TMR1H,w
+    movwf   rand+1
+    call    STARTUP     ;Carry out starup
+    clrf    BSR
+    call    MAIN        ;Do main loop
+    
+START_SLEEP:
+    call    SDOWN
+    sleep
+    goto    START
+    
+INIT:
+;Setup clock
+    banksel OSCCON
+    ;movlw   B'01111000'	;Internal HF clock at 16MHz
+    movlw   00111000B	;Internal HF clock at 500kHz
+    movwf   OSCCON
+;Setup I/O
+    banksel ANSELA
+    clrf    ANSELA
+    banksel LATA
+    movlw   OUT_QUIET
+    movwf   LATA
+    banksel TRISA
+    movlw   TRIS_NORMAL
+    movwf   TRISA
+    banksel WPUA
+    clrf   WPUA
+    banksel OPTION_REG
+    movlw   00000110B
+    movwf   OPTION_REG
+
+;Setup Timer1 - Status LED and sleep timer
+    banksel T1CON
+    movlw   00110001B ;Enabled, Instruction clock sourse, 1:8 Prescale
+    ;64us at 500kHz
+    movwf   T1CON
+    clrf    BSR
+    
+    return
+    
+STARTUP:
+    bsf     flags,pwrup
+    
+    call    READ_SW
+    
+    #if DEBUG_SW==1
+    ;Show switch read status
+    call    DBL_PULSE
+    movlw   0x01
+    call    BATT_PULSE
+    movf    modereg,w
+    andlw   0x01
+    call    BATT_PULSE
+    movf    modereg,w
+    andlw   0x02
+    call    BATT_PULSE
+    movf    modereg,w
+    andlw   0x04
+    call    BATT_PULSE
+    #endif
+
+    call    READ_BATT	;Read battery voltage
+    #ifdef   BATT_TEST_LEVEL
+    movlw   BATT_TEST_LEVEL 
+    #endif
+    movwf   batt_lvl  
+    
+    call    DBL_PULSE
+    call    BATT_PULSE
+    
+    
+    ;Display battery voltage
+    ;ADC input less than threshold -> battery voltage above threshold
+    movf    batt_lvl,w
+    addlw   -BATT_LVL_0
+    clrw
+    btfss   CARRY
+    movlw   0x01
+    call    BATT_PULSE
+    
+    movf    batt_lvl,w
+    addlw   -BATT_LVL_1
+    clrw
+    btfss   CARRY
+    movlw   0x01
+    call    BATT_PULSE
+    
+    movf    batt_lvl,w
+    addlw   -BATT_LVL_2
+    clrw
+    btfss   CARRY
+    movlw   0x01
+    call    BATT_PULSE
+    
+    movf    batt_lvl,w
+    addlw   -BATT_LVL_3
+    clrw
+    btfss   CARRY
+    movlw   0x01
+    call    BATT_PULSE
+       
+    call    DBL_PULSE
+    
+    #if AUTO_OFF == 0
+    call    DBL_PULSE
+    #endif
+
+;Setup clock
+    banksel OSCCON
+    movlw   01111000B	;Internal HF clock at 16MHz
+    movwf   OSCCON
+    
+;Set up LED timer
+    banksel T1CON
+    movlw   00100001B ;Enabled, Instruction clock sourse, 1:4 Prescale
+    ;1us at 16MHz
+    movwf   T1CON
+    clrf    BSR
+    
+    bsf	    TMR1ON
+    movlw   0x01
+    movwf   led_state
+    movlw   LED_FIRST_PERIOD
+    movwf   led_timer
+    movlw   high(TIMEOUT)
+    movwf   timeoutH
+    movlw   low(TIMEOUT)
+    movwf   timeoutL
+    
+    //Get name
+    #if NAME_MODE == 1
+    BANKSEL PMADRL ; Select correct Bank
+    CLRF PMADRL ; Store LSB of address
+    MOVLW   0X80 //User ID location
+    MOVWF PMADRH ; Set MSB of address
+
+    BSF CFGS ; Select Configuration Space
+    BCF GIE ; Disable interrupts
+    BSF RD ; Initiate read
+    NOP ; Executed (See Figure 10-2)
+    NOP ; Ignored (See Figure 10-2)
+    BSF GIE ; Restore interrupts
+    MOVF PMDATL,W ; Get LSB of word
+    clrf    BSR
+    MOVWF name ; Store in user location
+    #endif
+    
+    #if IR_MODE == 1
+    BANKSEL PMADRL ; Select correct Bank
+    movlw   0x01
+    movwf   PMADRL ; Store LSB of address
+    MOVLW   0X80 //User ID location
+    MOVWF   PMADRH ; Set MSB of address
+
+    BSF CFGS ; Select Configuration Space
+    BCF GIE ; Disable interrupts
+    BSF RD ; Initiate read
+    NOP ; Executed (See Figure 10-2)
+    NOP ; Ignored (See Figure 10-2)
+    BSF GIE ; Restore interrupts
+    MOVF PMDATL,W ; Get LSB of word
+    clrf    BSR
+    andlw   0x7e
+    addlw   IR_MIN_OFF
+    MOVWF   IR_OFF_prd ; Store in user location
+    #endif
+    
+;Set up outputs
+    clrf    flags
+    clrf    out_flags
+    movf    modereg,w
+    andlw   0x07
+    brw
+    bra	    MODE_0
+    bra	    MODE_1
+    bra	    MODE_2
+    bra	    MODE_3
+    bra	    MODE_4
+    bra	    MODE_5
+    bra	    MODE_6
+    bra	    MODE_7
+    
+SETUP_MODE_IDLE:
+    bra     STARTUP_END
+    
+SETUP_MODE_SWEEP:
+    ;RF sweep
+    movlw   0x1<<RF_SWEEP
+    movwf   out_flags
+    call    SETUP_RADIO
+    bra     STARTUP_END
+    
+SETUP_MODE_RFL1_A:
+    ;RF low with modulation 1 and acoustic
+    movlw   0x1<<RF_MOD_1
+    movwf   out_flags
+    call    SETUP_RADIO
+    call    SETUP_AF
+    bra     STARTUP_END
+    
+SETUP_MODE_RFL2:
+    ;RF low with modulation 2
+    movlw   0x1<<RF_MOD_2
+    movwf   out_flags
+    call    SETUP_RADIO
+    bra     STARTUP_END
+    
+SETUP_MODE_RFH3:
+    ;RF high with modulation 3
+    movlw   (0x1<<RF_MOD_3) | (0x1<<RF_FRQ)
+    movwf   out_flags
+    call    SETUP_RADIO
+    bra     STARTUP_END
+    
+SETUP_MODE_RFH4:
+    ;RF high with modulation 4
+    movlw   (0x1<<RF_MOD_4) | (0x1<<RF_FRQ)
+    movwf   out_flags
+    call    SETUP_RADIO
+    bra     STARTUP_END
+    
+SETUP_MODE_IRL:
+    ;Infrared low
+    movlw   0x00
+    movwf   out_flags
+    movlw   IR_L_OFF
+    movwf   IR_OFF_prd
+    call    SETUP_IR
+    bra     STARTUP_END
+
+SETUP_MODE_TEST:
+    ;All outputs in test mode
+    clrf    out_flags
+    movlw   (0x1<<RF_FRQ) | (0x01 << SEC_MOD)
+    movwf   out_flags
+    bsf	    flags,IR_sync
+    bsf	    flags,cycle_name
+    movlw   (MOD_UART_BPS*TMR0_POSTSCALE)/(SEC_MOD_1*2)
+    movwf   sec_mod_prd
+    call    SETUP_IR
+    call    SETUP_AF
+    call    SETUP_RADIO
+    bra     STARTUP_END
+
+SETUP_MODE_DEFAULT:
+    ;Default mode for alien/lizard
+    clrf    out_flags
+    call    SETUP_IR
+    #if MOD_CH
+    call    SETUP_AF
+    #else
+    call    SETUP_RADIO
+    #endif
+    bra     STARTUP_END
+
+SETUP_MODE_DEMO:
+    ;Default mode for alien
+    clrf    out_flags
+    
+    ;Name: LSBs from switch, MSBs from config. Config incr. 0x08
+    movf    modereg,w
+    andlw   0x07
+    addwf   name,w
+    andlw   0x3f
+    movwf   name
+    
+    ;Pulse: add LSBs from switch to MSBs from config. Config incr. 0x10
+    rlf	    modereg,w
+    andlw   0x0e
+    addwf   IR_OFF_prd,f
+    
+    call    SETUP_IR
+    call    SETUP_RADIO
+    bra     STARTUP_END
+
+SETUP_MODE_RAND:
+    ;Random mode for alien
+    clrf    out_flags
+    movf    rand,w
+    andlw   0x7e
+    addlw   IR_MIN_OFF
+    movwf   IR_OFF_prd
+    movf    rand+1,w
+    andlw   0x3f
+    movwf   name
+    call    SETUP_IR
+    call    SETUP_AF
+    bra     STARTUP_END
+    
+SETUP_MODE_LIZ_1:
+    //Lizard 1: AF + IR H
+    #if DEMO_MODE == 1
+    movf    modereg,w
+    andlw   0x07
+    addwf   name,w
+    andlw   0x3f
+    movwf   name
+    #endif
+    movlw   (0x0<<RF_FRQ)
+    movwf   out_flags
+    movlw   IR_H_OFF
+    movwf   IR_OFF_prd
+    call    SETUP_AF
+    call    SETUP_IR
+    bra     STARTUP_END
+    
+SETUP_MODE_LIZ_2:
+    //Lizard 2: AF + RF 1
+    #if DEMO_MODE == 1
+    movf    modereg,w
+    andlw   0x07
+    addwf   name,w
+    andlw   0x3f
+    movwf   name
+    #endif
+    movlw   (0x1<<RF_FRQ) | (0x01 << SEC_MOD)
+    movwf   out_flags
+    call    SETUP_AF
+    call    SETUP_RADIO
+    movlw   (MOD_UART_BPS*TMR0_POSTSCALE)/(SEC_MOD_1*2)
+    movwf   sec_mod_prd
+    bra     STARTUP_END
+    
+SETUP_MODE_LIZ_3:
+    //Lizard 3: AF + IR L
+    #if DEMO_MODE == 1
+    movf    modereg,w
+    andlw   0x07
+    addwf   name,w
+    andlw   0x3f
+    movwf   name
+    #endif
+    movlw   (0x0<<RF_FRQ)
+    movwf   out_flags
+    movlw   IR_L_OFF
+    movwf   IR_OFF_prd
+    call    SETUP_AF
+    call    SETUP_IR
+    bra     STARTUP_END
+    
+SETUP_MODE_LIZ_4:
+    //Lizard 4: AF + RF 2
+    #if DEMO_MODE == 1
+    movf    modereg,w
+    andlw   0x07
+    addwf   name,w
+    andlw   0x3f
+    movwf   name
+    #endif
+    movlw   (0x1<<RF_FRQ) | (0x01 << SEC_MOD)
+    movwf   out_flags
+    call    SETUP_AF
+    call    SETUP_RADIO
+    movlw   (MOD_UART_BPS*TMR0_POSTSCALE)/(SEC_MOD_2*2)
+    movwf   sec_mod_prd
+    bra     STARTUP_END
+    
+    
+SETUP_MODE_IRH_A:
+    ;Infrared high and acoustic
+    movlw   0x1<<IR_FRQ
+    movwf   out_flags
+    movlw   IR_H_OFF
+    movwf   IR_OFF_prd
+    call    SETUP_IR
+    call    SETUP_AF
+    bra     STARTUP_END
+    
+STARTUP_END:  
+    bcf     flags,pwrup
+    return
+    
+   
+    
+MAIN:
+_main:
+    ;Check timer state
+    btfsc   TMR1IF
+    call    TMR1_UPDATE
+    
+    btfsc   flags,uart_next
+    call    GET_MSG_BYTE
+    
+    btfss   flags,tout
+    goto    MAIN
+    return
+    
+SDOWN:
+    ;Turn off peripherals and outputs
+    bcf	    TMR1ON
+    bcf	    TMR2ON
+    banksel NCO1CON
+    bcf	    N1EN
+    bcf	    N1OE
+    banksel PWM2CON
+    bcf	    PWM2EN
+    bcf	    PWM2OE
+    banksel VREGCON
+    bsf	    VREGPM  ;Turn off regulator in sleep
+    clrf    BSR
+    movlw   OUT_QUIET
+    movwf   PORTA
+    bcf     flags,pwrup
+    return
+    
+    
+SETUP_AF:
+    call    SETUP_TMR2
+    
+    ;Setup PWM
+    banksel PWM2CON
+    movlw   FOSC4/(AF_HZ*TMR2_PRESCALE*2)
+    movwf   PWM2DCH
+    clrf    PWM2DCL
+    movlw   11000000B
+    movwf   PWM2CON
+    clrf    BSR
+    
+    #if MOD_CH == 1
+    banksel OPTION_REG
+    #if TMR0_PRESCALE==64
+    movlw   11000101B
+    #else
+    movlw   11000110B
+    #endif
+    movwf   OPTION_REG
+    clrf    BSR
+    
+    movlw   -FOSC4/(MOD_UART_BPS*TMR0_PRESCALE*TMR0_POSTSCALE)
+    movwf   TMR0_prd
+    movwf   TMR0
+    movlw   TMR0_POSTSCALE
+    movwf   T0_postscaler
+    clrf    uart_ctr
+    bcf	    flags,uart_next
+    bcf	    TMR0IF
+    bsf	    TMR0IE
+    bsf	    GIE
+    #endif
+    
+    return   
+    
+    
+SETUP_IR:
+    call    SETUP_TMR2
+    movf    IR_OFF_prd,w
+    movwf   T2_soft_postscaler
+    
+    bcf	    TMR2IF
+    btfsc   flags,IR_sync
+    bra	    SETUP_IR_1
+    
+    banksel PIE1
+    bsf	    TMR2IE
+    clrf    BSR
+    
+SETUP_IR_1:
+    bsf	    PEIE
+    bsf	    GIE
+    
+    return
+    
+SETUP_TMR2:
+    ;Setup Timer 2
+    banksel T2CON
+    movlw   TMR2_PRD-1
+    movwf   PR2
+    movlw   00000100B
+    #if	TMR2_PRESCALE == 4
+    iorlw   00000001B
+    #endif
+    #if	TMR2_POSTSCALE == 11
+    iorlw   01010000B
+    #elif TMR2_POSTSCALE == 6
+    iorlw   00101000B
+    #elif TMR2_POSTSCALE == 4
+    iorlw   00011000B
+    #elif TMR2_POSTSCALE == 2
+    iorlw   00001000B
+    #endif
+    movwf   T2CON
+    clrf    BSR
+    return
+    
+SETUP_RADIO:
+    ;Load the appropriate increment value for the selected frequency
+    movlw   low(NCO_INC_L)
+    btfsc   out_flags,RF_FRQ
+    movlw   low(NCO_INC_H)
+    banksel NCO1INCL
+    movwf   NCO1INCL
+    clrf    BSR
+    
+    movlw   high(NCO_INC_L)
+    btfsc   out_flags,RF_FRQ
+    movlw   high(NCO_INC_H)
+    banksel NCO1INCH
+    movwf   NCO1INCH
+    clrf    BSR
+    
+    banksel APFCON
+    bsf	    NCO1SEL  ;Set NCO output to pin RA5
+    banksel LATA
+    bcf	    LATA,PIN_RF	    ;Output should be low when waveform is diabled
+    banksel NCO1CON
+    movlw   00100001B	    ;Fosc input, output width 1
+    movwf   NCO1CLK
+    #if RF_DRIVE==0
+    movlw   11000000B	    ;NCO enabled, pin enabled, active high, fixed DC mode
+    #else
+    movlw   B'11000001'	    ;NCO enabled, pin enabled, active high, pulse mode
+    #endif    
+    movwf   NCO1CON
+    clrf    BSR
+    
+    movlw   high(NCO_INC_MIN)
+    movwf   nco_sweep+1
+    movlw   low(NCO_INC_MIN)
+    movwf   nco_sweep
+    
+    ;Set up the modulation
+    banksel OPTION_REG
+    #if TMR0_PRESCALE==64
+    movlw   11000101B
+    #else
+    movlw   11000110B
+    #endif
+    movwf   OPTION_REG
+    clrf    BSR
+    
+    #if MOD_TYPE==1
+    movlw   -FOSC4/(MOD_UART_BPS*TMR0_PRESCALE*TMR0_POSTSCALE)
+    movwf   TMR0_prd
+    movwf   TMR0
+    movlw   TMR0_POSTSCALE
+    movwf   T0_postscaler
+    clrf    uart_ctr
+    bcf	    flags,uart_next
+    
+    bcf	    TMR0IF
+    bsf	    TMR0IE
+    bsf	    GIE
+    
+    #elif MOD_TYPE==0
+    movlw   -FOSC4/(MOD_1_F*TMR0_PRESCALE*2*TMR0_POSTSCALE)
+    btfsc   out_flags,RF_MOD_2
+    movlw   -FOSC4/(MOD_2_F*TMR0_PRESCALE*2*TMR0_POSTSCALE)
+    btfsc   out_flags,RF_MOD_3
+    movlw   -FOSC4/(MOD_3_F*TMR0_PRESCALE*2*TMR0_POSTSCALE)
+    btfsc   out_flags,RF_MOD_4
+    movlw   -FOSC4/(MOD_4_F*TMR0_PRESCALE*2*TMR0_POSTSCALE)
+    movwf   TMR0_prd
+    movwf   TMR0
+    movlw   TMR0_POSTSCALE
+    movwf   T0_postscaler
+    
+    bcf	    TMR0IF
+    bsf	    TMR0IE
+    bsf	    GIE
+    
+    #endif
+    
+    return
+
+;Process the timeout and status LED
+TMR1_UPDATE:
+    bcf	    TMR1IF
+    
+    #if AUTO_OFF == 1
+    decfsz  timeoutL,f
+    bra	    TMR1_UPDATE_1
+    
+    decfsz  timeoutH,f
+    bra	    TMR1_UPDATE_1
+    
+    bsf	    flags,tout
+    #endif
+    
+TMR1_UPDATE_1:
+    decfsz  led_timer,f
+    return
+    
+    movf    led_state,w
+    andlw   0x07
+    brw
+    bra	    LED_STATE_0
+    bra	    LED_STATE_1
+    bra	    LED_STATE_2
+    bra	    LED_STATE_3
+    bra	    LED_STATE_4
+    bra	    LED_STATE_5
+    bra	    LED_STATE_6
+    bra	    LED_STATE_7
+    
+;Turn LED off and wait for next sequence
+LED_STATE_0:
+    bsf	    PORTA,PIN_ALIVE
+    movlw   LED_SEQUENCE_PERIOD
+    movwf   led_timer
+    incf    led_state,f
+    return
+
+;Display first mode bit
+LED_STATE_1:
+    bcf	    PORTA,PIN_ALIVE
+    
+    btfsc   flags,led_mode
+    bra	    LED_STATE_1_MODE1
+    
+    movlw   LED_DASH_PERIOD
+    btfss   modereg,LED_1
+    movlw   LED_DOT_PERIOD
+    movwf   led_timer
+    incf    led_state,f
+    
+    #if AUTO_OFF==0
+    bsf	    flags,led_mode
+    #endif
+    
+    return
+
+;Just a single pulse in led mode 1
+LED_STATE_1_MODE1:
+    movlw   LED_DOT_PERIOD
+    movwf   led_timer
+    clrf    led_state
+    return
+
+;Wait for second mode bit
+LED_STATE_2:
+    bsf	    PORTA,PIN_ALIVE
+    movlw   LED_BLANK_PERIOD
+    movwf   led_timer
+    incf    led_state,f
+    return
+
+;Display second mode bit
+LED_STATE_3:
+    bcf	    PORTA,PIN_ALIVE
+    movlw   LED_DASH_PERIOD
+    btfss   modereg,LED_2
+    movlw   LED_DOT_PERIOD
+    movwf   led_timer
+    incf    led_state,f
+    return
+
+;Wait for third mode bit
+LED_STATE_4:
+    bsf	    PORTA,PIN_ALIVE
+    movlw   LED_BLANK_PERIOD
+    movwf   led_timer
+    incf    led_state,f
+    return
+
+;Display third mode bit
+LED_STATE_5:
+    bcf	    PORTA,PIN_ALIVE
+    movlw   LED_DASH_PERIOD
+    btfss   modereg,LED_3
+    movlw   LED_DOT_PERIOD
+    movwf   led_timer
+    incf    led_state,f
+    return
+
+;Wait for fourth mode bit
+LED_STATE_6:
+    bsf	    PORTA,PIN_ALIVE
+    movlw   LED_BLANK_PERIOD
+    movwf   led_timer
+    incf    led_state,f
+    return
+
+;Display fourth mode bit
+LED_STATE_7:
+    bcf	    PORTA,PIN_ALIVE
+    movlw   LED_DASH_PERIOD
+    btfss   modereg,LED_4
+    movlw   LED_DOT_PERIOD
+    movwf   led_timer
+    clrf    led_state
+    return
+    
+BATT_PULSE:
+    movf    WREG,w
+    btfsc   ZERO
+    bra	    BATT_PULSE_1
+    
+    bcf     PORTA,PIN_ALIVE
+    movlw   high(-LED_SHORT_PULSE)
+    call    TMR1_DELAY
+    
+    bsf     PORTA,PIN_ALIVE
+    movlw   high(LED_SHORT_PULSE-LED_SEQ_DELAY)
+    call    TMR1_DELAY
+    return
+   
+BATT_PULSE_1:
+    movlw   high(-LED_SEQ_DELAY)
+    call    TMR1_DELAY
+    return
+    
+DBL_PULSE:
+    bcf	    PORTA,PIN_ALIVE
+    movlw   high(-LED_SHORT_PULSE)
+    call    TMR1_DELAY
+    bsf	    PORTA,PIN_ALIVE
+    movlw   high(LED_SHORT_PULSE-LED_SEQ_DELAY/4)
+    call    TMR1_DELAY
+    bcf	    PORTA,PIN_ALIVE
+    movlw   high(-LED_SHORT_PULSE)
+    call    TMR1_DELAY
+    bsf	    PORTA,PIN_ALIVE
+    movlw   high(LED_SHORT_PULSE-LED_SEQ_DELAY*3/4)
+    call    TMR1_DELAY
+    return
+    
+    
+    
+TMR1_DELAY:
+    bcf	    TMR1ON
+    clrf    TMR1L
+    movwf   TMR1H
+    bcf     TMR1IF
+    bsf	    TMR1ON
+    btfss   TMR1IF
+    goto    $-1
+    return
+    
+READ_SW:
+    ;Read switches
+    ;Set IO for switch read
+    banksel LATA
+    movlw   SW_MASK | OUT_QUIET   ;Precharge the switch lines
+    movwf   LATA
+    banksel WPUA
+    movlw   SW_MASK  ;Enable pullups on inputs
+    movwf   WPUA
+    
+    ;Wait for precharge to stabilise
+    nop
+    nop
+    nop
+    
+    banksel TRISA
+    movlw   SW_MASK   ;Change switch lines to input
+    movwf   TRISA
+    clrf    BSR
+    bcf     PORTA,PIN_READSW    ;Pull down the switch read line
+    
+    ;Wait for input to stabilise
+    nop
+    
+    ;Read the switch
+    movf    PORTA,w
+    andlw   SW_MASK
+    movwf   modereg
+    
+    ;Set IO back to normal
+    movlw   OUT_QUIET
+    movwf   PORTA
+    banksel TRISA
+    movlw   TRIS_NORMAL
+    movwf   TRISA
+    banksel WPUA
+    clrf    WPUA
+    clrf    BSR
+    
+    ;Work out the mode
+    clrw
+    btfss   modereg,PIN_SW1
+    iorlw   0x01
+    btfss   modereg,PIN_SW2
+    iorlw   0x02
+    btfss   modereg,PIN_SW3
+    iorlw   0x04
+    
+    ;Fill in the missing bit
+    call    BIT3LU
+    movwf   modereg
+    #ifdef  TEST_MODE
+    movlw   TEST_MODE
+    movwf   modereg
+    #endif
+    movf    modereg,w
+    return
+    
+BIT3LU:
+    andlw   0x7
+    brw
+    retlw   BIT4_0
+    retlw   BIT4_1
+    retlw   BIT4_2
+    retlw   BIT4_3
+    retlw   BIT4_4
+    retlw   BIT4_5
+    retlw   BIT4_6
+    retlw   BIT4_7
+    
+    
+READ_BATT:
+        
+    ;Voltage Reference
+    banksel FVRCON
+    movlw   10000010B	;VREF on, ADC buffer on at 2.048V
+    movwf   FVRCON
+    btfss   FVRRDY   ;Wait for VREF ready
+    goto    $-1
+    
+    ;Turn on infrared
+    banksel LATA
+    bsf LATA,PIN_IR
+    
+    ;Turn on ADC
+    banksel ADCON1
+    movlw   00000000B	;Fosc/2 conversion clock
+    movwf   ADCON1
+    movlw   01111101B
+    movwf   ADCON0
+    
+    ;Wait for acquisition
+    movlw   10
+    decfsz  WREG,F
+    goto    $-1 
+    
+    ;Read ADC
+    bsf     GO
+    btfsc   GO
+    goto    $-1  
+    
+    ;Turn off ADC
+    bcf     ADON
+    ;Turn off infrared
+    BANKSEL LATA
+    bcf     LATA,PIN_IR
+    banksel FVRCON
+    clrf    FVRCON
+    
+;Display battery voltage
+    banksel ADRESH
+    movf    ADRESH,w
+    clrf    BSR
+    return
+   
+GET_MSG_BYTE:
+    bcf	    flags,uart_next
+    ;Get character number
+    swapf   uart_ctr,w	;High nibble of uart counter is character number
+    andlw   0x0f
+    addlw   -MSG_LEN	;Set to zero if greater than message length
+    btfsc   CARRY
+    movlw   -MSG_LEN
+    addlw   MSG_LEN
+    
+    #if NAME_MODE == 0
+    ;Offset by message number
+    btfsc   out_flags,RF_MOD_2
+    addlw   MSG_LEN
+    btfsc   out_flags,RF_MOD_3
+    addlw   2*MSG_LEN
+    btfsc   out_flags,RF_MOD_4
+    addlw   3*MSG_LEN
+    
+    ;Load into indirect register
+    addlw   low(MSG_1)
+    movwf   FSR0L
+    movlw   high(PROGMEM)
+    movwf   FSR0H
+    movlw   high(MSG_1)
+    addwfc  FSR0H,f
+    bra	    GET_MSG_BYTE_1
+    
+    #else
+    btfss   ZERO
+    bra	    GET_MSG_BYTE_0
+    btfsc   flags,cycle_name
+    incf    name,f
+ 
+GET_MSG_BYTE_0:  
+    movwf   FSR0L
+    movlw   high(PROGMEM)
+    movwf   FSR0H
+ 
+GET_MSG_BYTE_1:   
+    rlf	    name,w
+    rlf	    WREG,w
+    andlw   0xfc
+    addwf   FSR0L,f
+    clrw
+    addwfc  FSR0H,f
+    
+    movlw   low(NAMES)
+    addwf   FSR0L,f
+    movlw   high(NAMES)
+    addwfc  FSR0H,f
+    #endif
+    
+    ;Get character
+    movf    INDF0,w
+    #if DEBUG_BATT == 1
+    movf    batt_lvl,w
+    #endif
+    movwf   uart_shift
+    return
+    
+    END resetVec
+    
