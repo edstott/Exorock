@@ -4,8 +4,14 @@
 #include <xc.h>
 #include "modulation.h"
 
-void setPrimaryOutput(modulationState_t *pState, _Bool outState){
-    switch (pState->pModulationConfig->modulationChannel) {
+#pragma switch space
+
+
+modulationState_t modulationState;
+
+
+void setPrimaryOutput(_Bool outState){
+    switch (modulationState.pModulationConfig->modulationChannel) {
 
 		MODULATE_AF:
 		MODULATE_AF_PLUS_RF:
@@ -23,8 +29,8 @@ void setPrimaryOutput(modulationState_t *pState, _Bool outState){
     }
 }
 
-void setSecondaryOutput(modulationState_t *pState, _Bool outState){
-    switch (pState->pModulationConfig->modulationChannel) {
+void setSecondaryOutput(_Bool outState){
+    switch (modulationState.pModulationConfig->modulationChannel) {
 
 		MODULATE_AF_PLUS_RF:
             /*enableRFoutput(outState);*/
@@ -42,24 +48,54 @@ void setSecondaryOutput(modulationState_t *pState, _Bool outState){
     }
 }
 
-void configModulation(modulationState_t *pState){
-    PMADRL = (uint8_t)nameList;
-    PMADRH = (uint8_t)((uint16_t)nameList >> 8);
+void configModulation(const modulationConfig_t *pModulationConfig){
+	modulationState.pModulationConfig = pModulationConfig;
+	if (1) {
+		CFGS = 1;
+		GIE = 0;
+		
+		PMADR = (uint16_t)&idloc[0];
+		RD = 1;
+		NOP();
+		NOP();
+		
+		PMADR = (uint16_t)nameList;
+		PMADR += PMDATL;
+		RD = 1;
+		NOP();
+		NOP();
+		
+		modulationState.name[0] = PMDATL & 0x7f;
+		modulationState.name[1] = (uint8_t)(PMDATH << 1);
+		if (PMDATL & 0x80) modulationState.name[1] |= 1; 
+		
+		PMADR++;
+		RD = 1;
+		NOP();
+		NOP();
+		
+		modulationState.name[2] = PMDATL & 0x7f;
+		modulationState.name[3] = (uint8_t)(PMDATH << 1);
+		if (PMDATL & 0x80) modulationState.name[3] |= 1; 		
+		
+		GIE = 1;
+		
+	}
     
 }
 
-void updateModulation(modulationState_t *pState){
+void updateModulation(){
     static uint8_t bitIndex = 0;
     static int8_t byteIndex = -PREAMBLE_BYTES;
     static char currentChar = 0;
     static _Bool secondaryModulationState = false;
     static uint8_t secondaryModulationCounter = 0;
-    if (pState->pModulationConfig->modulationChannel != MODULATE_OFF){
+    if (modulationState.pModulationConfig->modulationChannel != MODULATE_OFF){
         
-        switch (pState->pModulationConfig->modulationMode) {
+        switch (modulationState.pModulationConfig->modulationMode) {
 
             case MODULATE_SQUARE:
-                setPrimaryOutput(pState, bitIndex & 0x01);
+                setPrimaryOutput(bitIndex & 0x01);
                 bitIndex ^= 0x01;
                 break;
 
@@ -71,47 +107,22 @@ void updateModulation(modulationState_t *pState){
                 if (bitIndex == N_BITS) {
                     bitIndex = 0;
                     byteIndex++;
+                    if (byteIndex == MAX_NAME_LEN) {
+						byteIndex = -PREAMBLE_BYTES;
+					}
                 }
                 if (byteIndex < 0) {
-                    setPrimaryOutput(pState, true);
+                    setPrimaryOutput(true);
                 } else {
                     switch (bitIndex) {
                         case 0:
-                            currentChar = pState->name[byteIndex];
-                            if (currentChar == '\0' || byteIndex == MAX_NAME_LEN) {
-                                byteIndex = -PREAMBLE_BYTES;
-                                setPrimaryOutput(pState, true);
-                            } else {
-                                setPrimaryOutput(pState, false);
-                            }
-                            break;
-                        case 1:
-                            setPrimaryOutput(pState, currentChar & 0x01);
-                            break;
-                        case 2:
-                            setPrimaryOutput(pState, currentChar & 0x02);
-                            break;
-                        case 3:
-                            setPrimaryOutput(pState, currentChar & 0x04);
-                            break;
-                        case 4:
-                            setPrimaryOutput(pState, currentChar & 0x08);
-                            break;
-                        case 5:
-                            setPrimaryOutput(pState, currentChar & 0x10);
-                            break;
-                        case 6:
-                            setPrimaryOutput(pState, currentChar & 0x20);
-                            break;
-                        case 7:
-                            setPrimaryOutput(pState, currentChar & 0x40);
-                            break;
-                        case 8:
-                            setPrimaryOutput(pState, currentChar & 0x80);
-                            break;
+                            currentChar = modulationState.name[byteIndex];
+                            setPrimaryOutput(false);
                         case 9:
+                            setPrimaryOutput(true);
                         default:
-                            setPrimaryOutput(pState, true);
+                            setPrimaryOutput(currentChar & 0x01);
+							currentChar = currentChar >> 1;
                     }
 
 
@@ -119,16 +130,16 @@ void updateModulation(modulationState_t *pState){
                 break;
 
             default:
-                setPrimaryOutput(pState, true);
+                setPrimaryOutput(true);
 
         }
 
-        if (pState->pModulationConfig->modulationChannel == MODULATE_AF_PLUS_RF || pState->pModulationConfig->modulationChannel == MODULATE_RF_PLUS_AF) {
+        if (modulationState.pModulationConfig->modulationChannel == MODULATE_AF_PLUS_RF || modulationState.pModulationConfig->modulationChannel == MODULATE_RF_PLUS_AF) {
             secondaryModulationCounter--;
             if (secondaryModulationCounter == 0) {
-                secondaryModulationCounter = pState->pModulationConfig->secondaryModulationDivider;
+                secondaryModulationCounter = modulationState.pModulationConfig->secondaryModulationDivider;
                 secondaryModulationState = !secondaryModulationState;
-                setSecondaryOutput(pState, secondaryModulationState);
+                setSecondaryOutput(secondaryModulationState);
             }
         }
 

@@ -15,7 +15,6 @@
 #include "main.h"
 
 struct {
-    modulationState_t modulationState;
 } systemState ;
 
 void __interrupt() mainISR(){
@@ -25,7 +24,7 @@ void __interrupt() mainISR(){
     
     if (PIR1bits.TMR2IF) {
         PIR1bits.TMR2IF = 0;
-        updateModulation(&systemState.modulationState);
+        updateModulation();
     }
 }
 
@@ -122,9 +121,7 @@ void main(void) {
 					mode = (uint8_t)(mode << 1) | pConfig->extraModeBit;
 
 					/* Configure system state with pointers to configuration structs*/
-					systemState.modulationState.pModulationConfig = &pConfig->modulationConfig;
-
-					configModulation(&systemState.modulationState);
+					configModulation(&pConfig->modulationConfig);
 					configRF(&pConfig->RFConfig);
 
 					LATAbits = LATA_QUIET;

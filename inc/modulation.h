@@ -33,15 +33,17 @@ typedef struct {
 
 typedef struct {
 	const modulationConfig_t *pModulationConfig;
-	char *name;
-	uint8_t bitIndex;
-	int8_t byteIndex;
+	char name[MAX_NAME_LEN];
 } modulationState_t;
 
-void configModulation(modulationState_t *pState);
-void updateModulation(modulationState_t *pState);
+void configModulation(const modulationConfig_t *pModulationConfig);
+void updateModulation();
 
-extern void *nameList;
+extern const uint16_t nameList[];
+
+#pragma warning disable 1262
+extern const uint8_t idloc[] __at(0x8000);
+#pragma warning enable 1262
 
 
 #endif	/* MODULATION_H */
